@@ -34,6 +34,8 @@ class NoteService {
       text: "SELECT * FROM notes WHERE owner = $1",
       values: [owner],
     };
+
+    console.log(query);
     const result = await this._pool.query(query);
     return result.rows.map(mapDBToModel);
   }
