@@ -1,47 +1,61 @@
 /* eslint-disable no-undef */
 const Hapi = require("@hapi/hapi");
 const Jwt = require("@hapi/jwt");
-
-//notes
-const notes = require("./api/notes");
-const NotesService = require("./services/postgres/NotesService");
-const NotesValidator = require("./validator/notes");
-
-//users
-const users = require("./api/users");
-const UsersService = require("./services/postgres/UsersService ");
-const UsersValidator = require("./validator/users");
-
-// authentications
-const authentications = require("./api/authentications");
-const AuthenticationsService = require("./services/postgres/AuthenticationsService");
-const TokenManager = require("./tokenize/TokenManager");
-const AuthenticationsValidator = require("./validator/authentications");
-const ClientError = require("./exceptions/ClientError");
-
 require("dotenv").config();
 
-const init = async () => {
-  const notesService = new NotesService();
-  const usersService = new UsersService();
-  const authenticationsService = new AuthenticationsService();
+// Exceptions
+const ClientError = require("./exceptions/ClientError");
 
+// Music
+const music = require("./api/music");
+const MusicService = require("./services/database/MusicService");
+const MusicValidator = require("./validator/music");
+
+// Users
+const users = require("./api/users");
+const UsersService = require("./services/database/UsersService"); // Pastikan path benar
+const UsersValidator = require("./validator/users");
+
+// Authentications
+const authentications = require("./api/authentications");
+const AuthenticationsService = require("./services/database/AuthenticationsService");
+const TokenManager = require("./tokenize/TokenManager");
+const AuthenticationsValidator = require("./validator/authentications");
+
+// Playlists (BARU)
+const playlists = require("./api/playlists");
+const PlaylistsService = require("./services/database/PlaylistsService");
+const PlaylistsValidator = require("./validator/playlists");
+
+// Collaborations
+const collaborations = require("./api/collaborations");
+const CollaborationsService = require("./services/database/CollaborationsService");
+const CollaborationsValidator = require("./validator/collaborations");
+
+//exports
+const _exports = require("./api/exports");
+const ProducerService = require("./services/rabbitmq/ProducerService");
+const ExportsValidator = require("./validator/exports");
+
+const init = async () => {
   const server = Hapi.server({
     port: process.env.PORT,
     host: process.env.HOST,
     routes: {
       cors: {
-        origin: ["https://notesapp-v1.dicodingacademy.com"],
+        origin: ["*"],
       },
     },
   });
 
+  // Registrasi plugin eksternal
   await server.register([
     {
       plugin: Jwt,
     },
   ]);
 
+  // Mendefinisikan strategi autentikasi jwt
   server.auth.strategy("notesapp_jwt", "jwt", {
     keys: process.env.ACCESS_TOKEN_KEY,
     verify: {
@@ -58,12 +72,21 @@ const init = async () => {
     }),
   });
 
+  // Instansiasi Service
+  const musicService = new MusicService();
+  const usersService = new UsersService();
+  const authenticationsService = new AuthenticationsService();
+  const collaborationsService = new CollaborationsService();
+  // Inject collaborationsService ke dalam PlaylistsService agar bisa verifikasi akses
+  const playlistsService = new PlaylistsService(collaborationsService);
+
+  // Registrasi Plugin Internal
   await server.register([
     {
-      plugin: notes,
+      plugin: music,
       options: {
-        service: notesService,
-        validator: NotesValidator,
+        service: musicService,
+        validator: MusicValidator,
       },
     },
     {
@@ -82,6 +105,28 @@ const init = async () => {
         validator: AuthenticationsValidator,
       },
     },
+    {
+      plugin: playlists,
+      options: {
+        service: playlistsService,
+        validator: PlaylistsValidator,
+      },
+    },
+    {
+      plugin: collaborations,
+      options: {
+        collaborationsService,
+        playlistsService,
+        validator: CollaborationsValidator,
+      },
+    },
+    {
+      plugin: _exports,
+      options: {
+        service: ProducerService,
+        validator: ExportsValidator,
+      },
+    },
   ]);
 
   server.ext("onPreResponse", (request, h) => {
@@ -93,6 +138,17 @@ const init = async () => {
         message: response.message,
       });
       newResponse.code(response.statusCode);
+      return newResponse;
+    }
+
+    // Penanganan error server internal (Opsional tapi disarankan agar tidak bocor infonya)
+    if (response instanceof Error && !response.isBoom) {
+      console.error(response); // Log error asli ke console server
+      const newResponse = h.response({
+        status: "error",
+        message: "Maaf, terjadi kegagalan pada server kami.",
+      });
+      newResponse.code(500);
       return newResponse;
     }
 

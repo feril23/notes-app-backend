@@ -51,49 +51,32 @@ class NoteHandler {
     };
   }
   async getNoteByIdHandler(request, h) {
-    try {
-      const { id } = request.params;
-      const { id: credentialId } = request.auth.credentials;
+    const { id } = request.params;
+    const { id: credentialId } = request.auth.credentials;
 
-      await this._service.verifyNoteOwner(id, credentialId);
-      const note = await this._service.getNoteById(id);
-      return {
-        status: "success",
-        data: {
-          note,
-        },
-      };
-    } catch (error) {
-      const response = h.response({
-        status: "fail",
-        message: error.message,
-      });
-      response.code(404);
-      return response;
-    }
+    await this._service.verifyNoteAccess(id, credentialId);
+    const note = await this._service.getNoteById(id);
+
+    return {
+      status: "success",
+      data: {
+        note,
+      },
+    };
   }
   async putNoteByIdHandler(request, h) {
-    try {
-      this._validator.validateNotePayload(request.payload);
-      const { id } = request.params;
-      const { id: credentialId } = request.auth.credentials;
+    this._validator.validateNotePayload(request.payload);
+    const { id } = request.params;
+    const { id: credentialId } = request.auth.credentials;
 
-      await this._service.verifyNoteOwner(id, credentialId);
-      await this._service.editNoteById(id, request.payload);
-
-      return {
-        status: "success",
-        message: "Catatan berhasil diperbarui",
-      };
-    } catch (error) {
-      const response = h.response({
-        status: "fail",
-        message: error.message,
-      });
-      response.code(404);
-      return response;
-    }
+    await this._service.verifyNoteAccess(id, credentialId);
+    await this._service.editNoteById(id, request.payload);
+    return {
+      status: "success",
+      message: "Catatan berhasil diperbarui",
+    };
   }
+
   async deleteNoteByIdHandler(request, h) {
     try {
       const { id } = request.params;
