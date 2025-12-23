@@ -99,13 +99,6 @@ const init = async () => {
       },
     },
     {
-      plugin: playlists,
-      options: {
-        service: playlistsService,
-        validator: PlaylistsValidator,
-      },
-    },
-    {
       plugin: collaborations,
       options: {
         collaborationsService,
