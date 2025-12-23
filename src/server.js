@@ -7,9 +7,9 @@ require("dotenv").config();
 const ClientError = require("./exceptions/ClientError");
 
 // Music
-const music = require("./api/music");
-const MusicService = require("./services/database/MusicService");
-const MusicValidator = require("./validator/music");
+const notes = require("./api/notes");
+const NotesService = require("./services/postgres/NotesService");
+const NotesValidator = require("./validator/notes");
 
 // Users
 const users = require("./api/users");
@@ -21,11 +21,6 @@ const authentications = require("./api/authentications");
 const AuthenticationsService = require("./services/database/AuthenticationsService");
 const TokenManager = require("./tokenize/TokenManager");
 const AuthenticationsValidator = require("./validator/authentications");
-
-// Playlists (BARU)
-const playlists = require("./api/playlists");
-const PlaylistsService = require("./services/database/PlaylistsService");
-const PlaylistsValidator = require("./validator/playlists");
 
 // Collaborations
 const collaborations = require("./api/collaborations");
@@ -73,20 +68,18 @@ const init = async () => {
   });
 
   // Instansiasi Service
-  const musicService = new MusicService();
+  const notesService = new NotesService();
   const usersService = new UsersService();
   const authenticationsService = new AuthenticationsService();
   const collaborationsService = new CollaborationsService();
-  // Inject collaborationsService ke dalam PlaylistsService agar bisa verifikasi akses
-  const playlistsService = new PlaylistsService(collaborationsService);
 
   // Registrasi Plugin Internal
   await server.register([
     {
-      plugin: music,
+      plugin: notes,
       options: {
-        service: musicService,
-        validator: MusicValidator,
+        service: notesService,
+        validator: NotesValidator,
       },
     },
     {
