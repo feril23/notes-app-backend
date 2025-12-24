@@ -1,7 +1,9 @@
 /* eslint-disable no-undef */
 const Hapi = require("@hapi/hapi");
 const Jwt = require("@hapi/jwt");
+const Inert = require("@hapi/inert");
 require("dotenv").config();
+const path = require("path");
 
 // Error
 const ClientError = require("./exceptions/ClientError");
@@ -32,11 +34,23 @@ const _exports = require("./api/exports");
 const ProducerService = require("./services/rabbitmq/ProducerService");
 const ExportsValidator = require("./validator/exports");
 
+// uploads
+const uploads = require("./api/uploads");
+const StorageService = require("./services/storage/StorageService");
+const UploadsValidator = require("./validator/uploads");
+
+// cache
+const CacheService = require("./services/redis/CacheService");
+
 const init = async () => {
-  const notesService = new NotesService();
+  const cacheService = new CacheService();
   const usersService = new UsersService();
   const authenticationsService = new AuthenticationsService();
-  const collaborationsService = new CollaborationsService();
+  const collaborationsService = new CollaborationsService(cacheService);
+  const notesService = new NotesService(collaborationsService, cacheService);
+  const storageService = new StorageService(
+    path.resolve(__dirname, "api/uploads/file/images")
+  );
 
   const server = Hapi.server({
     port: process.env.PORT,
@@ -51,6 +65,9 @@ const init = async () => {
   await server.register([
     {
       plugin: Jwt,
+    },
+    {
+      plugin: Inert,
     },
   ]);
 
@@ -107,6 +124,13 @@ const init = async () => {
       options: {
         service: ProducerService,
         validator: ExportsValidator,
+      },
+    },
+    {
+      plugin: uploads,
+      options: {
+        service: storageService,
+        validator: UploadsValidator,
       },
     },
   ]);
